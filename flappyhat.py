@@ -6,6 +6,14 @@ GAME_WIDTH = 360
 GAME_HEIGHT = 640
 GROUND_Y = GAME_HEIGHT - 80 
 
+HAT_RANKS = {
+    0: "Keep Practicing!",
+    5: "Good Start!",
+    10: "Excellent!",
+    20: "Unstoppable!",
+    30: "Absolute Legend!"
+}
+
 pygame.init() 
 window = pygame.display.set_mode((GAME_WIDTH, GAME_HEIGHT))
 pygame.display.set_caption("Flappy Hat")
@@ -14,6 +22,7 @@ clock = pygame.time.Clock()
 title_font = pygame.font.SysFont("Comic Sans MS", 55, bold=True)
 game_font = pygame.font.SysFont("Comic Sans MS", 35)
 score_font = pygame.font.SysFont("Comic Sans MS", 45)
+praise_font = pygame.font.SysFont("Comic Sans MS", 35, bold=True)
 
 background_image = pygame.image.load("flappyhatbg.png").convert()
 
@@ -27,7 +36,6 @@ top_ruler_image = pygame.image.load("topruler.png").convert_alpha()
 top_ruler_image = pygame.transform.scale(top_ruler_image, (68, 512))
 bottom_ruler_image = pygame.image.load("bottomruler.png").convert_alpha()
 bottom_ruler_image = pygame.transform.scale(bottom_ruler_image, (68, 512))
-
 
 class Hat:
     def __init__(self, images, x, y):
@@ -80,7 +88,6 @@ class Hat:
         rotated_rect = self.img.get_rect(center=self.rect.center)
         surface.blit(self.img, rotated_rect.topleft)
 
-
 class Ruler:
     def __init__(self, img, x, y):
         self.img = img
@@ -94,7 +101,6 @@ class Ruler:
 
     def draw(self, surface):
         surface.blit(self.img, self.rect)
-
 
 class FlappyHatGame:
     def __init__(self):
@@ -112,6 +118,11 @@ class FlappyHatGame:
         self.rulers = []
         self.score = 0
         self.distance_traveled = 240 
+        
+        self.pop_up_text = ""
+        self.pop_up_timer = 0
+        self.pop_up_max_time = 90 
+        self.performance_rank = HAT_RANKS[0]
 
     def create_rulers(self):
         ruler_height = 512
@@ -157,6 +168,9 @@ class FlappyHatGame:
         elif self.state == "PLAYING":
             self.hat.move()
 
+            if self.pop_up_timer > 0:
+                self.pop_up_timer -= 1
+
             self.distance_traveled += abs(self.scroll_speed)
             if self.distance_traveled >= 240: 
                 self.create_rulers()
@@ -168,7 +182,13 @@ class FlappyHatGame:
                 if not ruler.passed and self.hat.rect.left > ruler.rect.right:
                     self.score += 0.5 
                     ruler.passed = True
-                
+                    
+                    current_score = int(self.score)
+                    if self.score == current_score and current_score in HAT_RANKS and current_score > 0:
+                        self.pop_up_text = HAT_RANKS[current_score]
+                        self.pop_up_timer = self.pop_up_max_time 
+                        self.performance_rank = HAT_RANKS[current_score]
+
                 if self.hat.hitbox.colliderect(ruler.rect):
                     self.state = "FALLING"
 
@@ -184,7 +204,6 @@ class FlappyHatGame:
             if self.hat.hitbox.bottom >= GROUND_Y:
                 self.hat.rect.bottom = GROUND_Y + (self.hat.rect.height - self.hat.hitbox.height)/2
                 self.state = "GAMEOVER"
-
 
     def draw(self):
         window.blit(background_image, (0, 0))
@@ -225,13 +244,32 @@ class FlappyHatGame:
         elif self.state in ["PLAYING", "FALLING"]:
             score_str = score_font.render(str(int(self.score)), True, "white")
             window.blit(score_str, (GAME_WIDTH/2 - score_str.get_width()/2, 50))
+            
+            if self.state == "PLAYING" and self.pop_up_timer > 0:
+                progress = self.pop_up_timer / self.pop_up_max_time
+                
+                anim_y = 110 - (30 * (1.0 - progress))
+                anim_alpha = int(255 * progress)
+                
+                praise_surface = praise_font.render(self.pop_up_text, True, (255, 215, 0))
+                shadow_surface = praise_font.render(self.pop_up_text, True, (0, 0, 0))
+                
+                praise_surface.set_alpha(anim_alpha)
+                shadow_surface.set_alpha(anim_alpha)
+                
+                anim_x = GAME_WIDTH/2 - praise_surface.get_width()/2
+                
+                window.blit(shadow_surface, (anim_x + 2, anim_y + 2))
+                window.blit(praise_surface, (anim_x, anim_y))
 
         elif self.state == "GAMEOVER":
             over_text = title_font.render("Game Over!", True, "white")
             final_score_text = game_font.render(f"Score: {int(self.score)}", True, "white")
+            rank_text = game_font.render(self.performance_rank, True, (255, 215, 0))
             
-            window.blit(over_text, (GAME_WIDTH/2 - over_text.get_width()/2, GAME_HEIGHT/4 - 20))
-            window.blit(final_score_text, (GAME_WIDTH/2 - final_score_text.get_width()/2, GAME_HEIGHT/2 - 40))
+            window.blit(over_text, (GAME_WIDTH/2 - over_text.get_width()/2, GAME_HEIGHT/4 - 40))
+            window.blit(final_score_text, (GAME_WIDTH/2 - final_score_text.get_width()/2, GAME_HEIGHT/2 - 60))
+            window.blit(rank_text, (GAME_WIDTH/2 - rank_text.get_width()/2, GAME_HEIGHT/2 - 10))
             
             mouse_pos = pygame.mouse.get_pos()
             btn_color = (255, 165, 0) if self.ok_btn.collidepoint(mouse_pos) else (200, 100, 0)
@@ -241,7 +279,6 @@ class FlappyHatGame:
             
             ok_txt = game_font.render("OK", True, "white")
             window.blit(ok_txt, (self.ok_btn.centerx - ok_txt.get_width()/2, self.ok_btn.centery - ok_txt.get_height()/2))
-
 
     def run(self):
         while True:
